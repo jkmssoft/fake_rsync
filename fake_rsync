@@ -1,0 +1,86 @@
+#!/bin/bash
+#
+# Uso
+# $ fake_rsync [opciones] [origen] [destino]
+ARGLIST='' 
+TMPDIR="/tmp/fake_rsync_"
+
+function help_message()
+{
+    echo "fake_rsync v0.1"
+    echo "Copyright (C) 2020 by Nicolás Hermosilla"
+    echo ""
+    echo "fake_rsync comes with ABSOLUTELY NO WARRANTY.  This is free software, and"
+    echo "you are welcome to redistribute it under certain conditions.  See the GNU" 
+    echo "General Public Licence for details."
+    echo ""
+    echo "fake_rsync is a wrapper around rsync, which uses sshfs to mount remote" 
+    echo "locations. This way it allows you to bypass any error caused by protocol" 
+    echo "incompatibilities, misconfigured login messages on a server and many others."
+    echo ""
+    echo "Usage: fake_rsync [OPTIONS]... [USER@]HOST:SRC [DEST]"
+    echo "  or   fake_rsync [OPTIONS]... SRC [USER@]HOST:DEST"
+    echo ""
+    echo "Please note it currently does not support using several SRC arguments. Neither" 
+    echo "does it support any other communication protocol asides from remote shell. It"
+    echo "does, however, support the usage of all rsync options."
+
+}
+
+if [ $# -le 1 ]
+then
+    help_message
+    exit
+fi
+
+# Parse the full arglist, except the last 2
+while [ $# -ge 3 ]
+do
+    case "$1" in
+       -* | --*=*)
+           ARGLIST="${1} ${ARGLIST}"
+    esac
+    shift
+done
+
+# If $1 is a remote location, mount it
+# using sshfs
+
+if [[ "$1" == *":"* ]] 
+then
+    SRCDIR="${TMPDIR}1"
+    mkdir "$SRCDIR"
+    sshfs "$1" "$SRCDIR"
+else
+    SRCDIR="$1"
+fi
+
+# The same as before, with $2
+
+if [[ "$2" == *":"* ]] 
+then
+    DESTDIR="${TMPDIR}2"
+    mkdir "$DESTDIR"
+    sshfs "$2" "$DESTDIR"
+else
+    DESTDIR="$2"
+fi
+
+# Run rsync
+rsync $ARGLIST "${SRCDIR}" "$DESTDIR"
+
+# Unmount as needed
+
+if [ "$1" != "$SRCDIR" ]
+then
+    umount "$SRCDIR"
+    rmdir "$SRCDIR"
+fi
+
+if [ "$2" != "$DESTDIR" ]
+then
+    umount "$DESTDIR"
+    rmdir "$DESTDIR"
+fi
+
+
